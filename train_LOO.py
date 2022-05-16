@@ -23,6 +23,7 @@ path_data = args.path_data
 
 with open(os.path.join(path_data, 'config_for_training.json'), 'r') as f:
     config_json = json.load(f)
+
 path_output = config_json["path_output"]
 config_json["split_dataset"]["data_testing"]["data_type"] = "participant_id"
 
@@ -32,7 +33,7 @@ participant_ids = df['participant_id'].to_numpy()
 
 for participant_id in participant_ids:
 
-    config_json["split_dataset"]["data_testing"]["data_value"] = participant_id
+    config_json["split_dataset"]["data_testing"]["data_value"] = [participant_id]
     config_json["path_output"] = path_output + '_' + participant_id
     config_json_name = f"config_for_training_{participant_id}.json"
 
