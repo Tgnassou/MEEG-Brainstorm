@@ -39,4 +39,4 @@ for participant_id in participant_ids:
     with open(os.path.join(path_data, config_json_name), 'w') as json_file:
         json.dump(config_json, json_file, indent=4, sort_keys=True)
 
-    os.system(f'ivadomed -c {config_json_name}')
+    os.system(f'ivadomed -c {os.path.join(path_data, config_json_name)}')
