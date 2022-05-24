@@ -29,4 +29,4 @@ for participant_id in participant_ids:
 
     config_json_name = "config_for_training_{}.json".format(participant_id)
 
-    os.system('ivadomed -c {}'.format(os.path.join(path_data, config_json_name)))
+    os.system('ivadomed --test -c {}'.format(os.path.join(path_data, config_json_name)))
