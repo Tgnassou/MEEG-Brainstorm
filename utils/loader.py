@@ -1,182 +1,134 @@
+#!/usr/bin/env python
+
+"""
+This script is used to create dataloaders.
+
+Usage: type "from model import <class>" to use class.
+       type "from model import <function>" to use function.
+
+Contributors: Ambroise Odonnat.
+"""
+
+import torch
+
 import numpy as np
 
-from torch.utils.data import ConcatDataset
-from torch.utils.data import DataLoader
-
-from sklearn.model_selection import LeavePGroupsOut
+from torch.utils.data import DataLoader, TensorDataset
 
 
+def pad_tensor(x, n_pads, dim):
 
-def pick_recordings(dataset, subj_rec_nbs):
-    """Pick recordings using subject and recording numbers.
-    Parameters
-    ----------
-    dataset : ConcatDataset
-        The dataset to pick recordings from.
-    subj_rec_nbs : list of tuples
-        List of pairs (subj_nb, rec_nb) to use in split.
-    Returns
-    -------
-    ConcatDataset
-        The picked recordings.
-    ConcatDataset | None
-        The remaining recordings. None if all recordings from
-        `dataset` were picked.
     """
-    pick_idx = list()
-    for subj_nb, rec_nb in subj_rec_nbs:
-        for i, ds in enumerate(dataset.datasets):
-            if (ds.subj_nb == subj_nb) and (ds.rec_nb == rec_nb):
-                pick_idx.append(i)
+    Pad up to n_pads with lowest int value a given tensor on dimension dim .
+    Args:
+        x (tensor): Tensor to pad.
+        n_pads (int): Size to pad to.
+        dim (int):  Dimension to pad on.
 
-    pick_ds = ConcatDataset([dataset.datasets[i] for i in pick_idx])
-
-    return pick_ds
-
-
-def train_test_split(dataset, n_groups, split_by="subj_nb"):
-    """Split dataset into train and test keeping n_groups out in test.
-    Parameters
-    ----------
-    dataset : ConcatDataset
-        The dataset to split.
-    n_groups : int
-        The number of groups to leave out.
-    split_by : 'subj_nb' | 'rec_nb'
-        Property to use to split dataset.
-    Returns
-    -------
-    ConcatDataset
-        The training data.
-    ConcatDataset
-        The testing data.
+    Eeturn:
+        A new tensor padded to n_pads on dimension dim.
     """
-    groups = [getattr(ds, split_by) for ds in dataset.datasets]
-    train_idx, test_idx = next(LeavePGroupsOut(n_groups).split(X=groups, groups=groups))
-    train_ds = ConcatDataset([dataset.datasets[i] for i in train_idx])
-    test_ds = ConcatDataset([dataset.datasets[i] for i in test_idx])
 
-    return train_ds, test_ds
+    pad_size = list(x.shape)
+    pad_size[dim] = n_pads-x.shape[dim]
 
-
-def loaders_LOPO(
-    model,
-    dataset_source,
-    dataset_target,
-    rec_subjects,
-    subjects_source,
-    subject_target,
-    batch_size,
-    num_workers,
-    mix_source=True,
-    nb_val=1,
-):
-
-    source_ds = list()
-    for k in subjects_source:
-        source_ds.append(pick_recordings(dataset_source, [(k, 1), (k, 2)]))
-
-    if rec_subjects[subject_target] == 1:
-        # Take the only rec available
-        target_dss = [
-            pick_recordings(dataset_target, [(subject_target, 1), (subject_target, 2)])
-        ]
-    else:
-        target_dss = [
-            pick_recordings(dataset_target, [(subject_target, 1)]),
-            pick_recordings(dataset_target, [(subject_target, 2)]),
-        ]
-    # Find the closest subjects of target sucject
-
-    valid_ds = pick_recordings(
-        dataset_source,
-        [
-            (subjects_source[closest_patient[i]], j)
-            for i in range(nb_val)
-            for j in range(1, 3)
-        ],
-    )
-
-    subjects_train = np.delete(
-        subjects_source, [closest_patient[i] for i in range(nb_val)]
-    )
-    
-    source_dss = [pick_recordings(
-        dataset_source, [(i, j) for i in subjects_train for j in range(1, 3)]
-    )]
-    # Define class weight
-    train_y = np.concatenate([ds.epochs_labels for ds in source_dss[0].datasets])
-    class_weights = compute_class_weight(
-        "balanced", classes=np.unique(train_y), y=train_y
-    )  
-
-    if not mix_source:
-        source_dss = list()
-        for k in subjects_train:
-            source_dss.append(pick_recordings(dataset_source, [(k, 1), (k, 2)]))
-            
-    # Define loaders
-    loader_valid = DataLoader(
-        valid_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers,
-    )
-
-    loaders_source = [
-        DataLoader(
-            source_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers,
-        )
-        for source_ds in source_dss
-    ]
-    loaders_target = [
-        DataLoader(
-            target_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers,
-        )
-        for target_ds in target_dss
-    ]
-
-    return loaders_source, loaders_target, loader_valid, class_weights
+    return torch.cat([torch.Tensor(x), torch.zeros(*pad_size)], dim=dim)
 
 
-def loaders_DA(dataset_s, dataset_t, subject_s, subject_t, batch_size, num_workers):
+class PadCollate:
 
-    # Loaders source (train, valid)
-    n_train = int(0.80 * len(subject_s))
+    """ Custom collate_fn that pads according to the longest sequence in
+        a batch of sequences.
+    """
 
-    source_ds = pick_recordings(
-        dataset_s, [(s, r) for s in subject_s[:n_train] for r in [1, 2]]
-    )
-    n_subjects_valid = max(1, int(len(source_ds.datasets) * 0.2))
-    source_ds, valid_ds = train_test_split(
-        source_ds, n_subjects_valid, split_by="subj_nb"
-    )
+    def __init__(self, dim=1):
 
-    train_y = np.concatenate([ds.epochs_labels for ds in source_ds.datasets])
-    class_weights = compute_class_weight(
-        "balanced", classes=np.unique(train_y), y=train_y
-    )
+        """
+        Args:
+            dim (int): Dimension to pad.
+        """
 
-    loader_source = DataLoader(
-        source_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers
-    )
+        self.dim = dim
 
-    loader_valid = DataLoader(
-        valid_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers
-    )
+    def pad_collate(self, batch):
 
-    # loaders target
-    n_train = int(0.80 * len(subject_t))
+        """
+        Args:
+            batch (list): List of (tensor, label).
 
-    target_ds = pick_recordings(
-        dataset_t, [(s, r) for s in subject_t[n_train:] for r in [1, 2]]
-    )
+        Return:
+            xs (tensor): Tensor of all data in batch after padding.
+            ys (tensor): LongTensor of all labels in batch.
+        """
 
-    loader_target = DataLoader(
-        target_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers
-    )
+        # Find longest sequence
+        max_len = max(map(lambda x: x[0].shape[self.dim], batch))
 
-    # Define class weight
-    train_y = np.concatenate([ds.epochs_labels for ds in source_ds.datasets])
-    class_weights = compute_class_weight(
-        "balanced", classes=np.unique(train_y), y=train_y
-    )
+        # Pad according to max_len
+        data = map(lambda x: pad_tensor(x[0], n_pads=max_len, dim=self.dim),
+                   batch)
+        labels = map(lambda x: torch.tensor(x[1]), batch)
 
-    return loader_source, loader_target, loader_valid, class_weights
+        # Stack all
+        xs = torch.stack(list(data), dim=0)
+        ys = torch.stack(list(labels), dim=0)
+
+        return xs, ys
+
+    def __call__(self, batch):
+        return self.pad_collate(batch)
+
+
+def get_dataloader(data, labels, batch_size, shuffle, num_workers):
+
+    """ Get dataloader.
+
+    Args:
+        data (array): Array of trials of dimension
+                     [n_trials x 1 x n_channels x n_time_points].
+        labels (array): Corresponding labels.
+        batch_size (float): Size of batches.
+        shuffle (bool): If True, shuffle batches in dataloader.
+        num_workers (float): Number of loader worker processes.
+
+    Returns:
+        dataloader (Dataloader): Dataloader of trials and labels batches.
+    """
+
+    # Get dataloader
+    data, labels = torch.from_numpy(data), torch.from_numpy(labels)
+    dataset = TensorDataset(data, labels)
+    dataloader = DataLoader(dataset=dataset, batch_size=batch_size,
+                            shuffle=shuffle, num_workers=num_workers)
+
+    return dataloader
+
+
+def get_pad_dataloader(data, labels, batch_size,
+                       shuffle, num_workers):
+
+    """ Get dataloaders with padding according to the highest
+        number of channels in each batch of trials.
+
+    Args:
+        data (list): List of array of trials of dimension
+                     [n_trials x 1 x n_channels x n_time_points].
+        labels (list): List of corresponding array of labels.
+        batch_size (float): Size of batches.
+        shuffle (bool): If True, shuffle batches in dataloader.
+        num_workers (float): Number of loader worker processes.
+
+    Returns:
+        dataloader (Dataloader): Dataloader of trials and labels batches.
+    """
+
+    # Get dataloader
+    dataset = []
+    for id in range(len(data)):
+        for n_trial in range(data[id].shape[0]):
+            dataset.append((data[id][n_trial], labels[id][n_trial]))
+    dataloader = DataLoader(dataset=dataset, batch_size=batch_size,
+                            shuffle=shuffle, num_workers=num_workers,
+                            collate_fn=PadCollate(dim=1))
+
+    return dataloader

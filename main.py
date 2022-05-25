@@ -19,6 +19,7 @@ from utils.training import train
 from utils.evaluation import score
 from utils.data_fukumori import Data, SpikeDetectionDataset
 from utils.model import fukumori2021RNN
+from utils.loader import get_pad_dataloader
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -65,13 +66,15 @@ data = all_dataset[0]
 subject_ids = np.asarray(list(data.keys()))
 labels = all_dataset[1]
 for test_subject_id in subject_ids:
-    
+
     data_train = []
     labels_train = []
     data_train = []
-    train_subject_ids = np.delete(subject_ids, np.where(subject_ids == test_subject_id))
+    train_subject_ids = np.delete(subject_ids,
+                                  np.where(subject_ids == test_subject_id))
     val_subject_id = np.random.choice(train_subject_ids)
-    train_subject_ids = np.delete(subject_ids, np.where(subject_ids == val_subject_id))
+    train_subject_ids = np.delete(subject_ids,
+                                  np.where(subject_ids == val_subject_id))
 
     print('Validation on: {}, '
           'test on: {}'.format(test_subject_id,
@@ -82,42 +85,75 @@ for test_subject_id in subject_ids:
         data_train.append(np.concatenate(sessions_trials, axis=0))
         sessions_events = labels[id]
         labels_train.append(np.concatenate(sessions_events))
-    
-    data_train = np.concatenate(data_train, axis=0)     
-    labels_train = np.concatenate(labels_train, axis=0)
-    data_val = np.concatenate(data[val_subject_id], axis=0)
-    labels_val = np.concatenate(labels[val_subject_id], axis=0)
-    data_test = np.concatenate(data[test_subject_id], axis=0)
-    labels_test = np.concatenate(labels[test_subject_id], axis=0)
 
-    data_train = signal.resample(data_train, 512, axis=1)
-    data_train = data_train[:, :, np.newaxis]
-    data_test = signal.resample(data_test, 512, axis=1)
-    data_test = data_test[:, :, np.newaxis]
-    data_val = signal.resample(data_val, 512, axis=1)
-    data_val = data_val[:, :, np.newaxis]
+    if method == 'Fukumori':
+        data_train = np.concatenate(data_train, axis=0)
+        labels_train = np.concatenate(labels_train, axis=0)
+        data_val = np.concatenate(data[val_subject_id], axis=0)
+        labels_val = np.concatenate(labels[val_subject_id], axis=0)
+        data_test = np.concatenate(data[test_subject_id], axis=0)
+        labels_test = np.concatenate(labels[test_subject_id], axis=0)
 
+        data_train = signal.resample(data_train, 512, axis=1)
+        data_train = data_train[:, :, np.newaxis]
+        data_test = signal.resample(data_test, 512, axis=1)
+        data_test = data_test[:, :, np.newaxis]
+        data_val = signal.resample(data_val, 512, axis=1)
+        data_val = data_val[:, :, np.newaxis]
 
-    mean = data_train.mean()
-    std = data_train.std()
-    data_train -= mean
-    data_train /= std
-    mean = data_val.mean()
-    std = data_val.std()
-    data_val -= mean
-    data_val /= std
-    mean = data_test.mean()
-    std = data_test.std()
-    data_test -= mean
-    data_test /= std
+        mean = data_train.mean()
+        std = data_train.std()
+        data_train -= mean
+        data_train /= std
+        mean = data_val.mean()
+        std = data_val.std()
+        data_val -= mean
+        data_val /= std
+        mean = data_test.mean()
+        std = data_test.std()
+        data_test -= mean
+        data_test /= std
 
-    dataset_train = SpikeDetectionDataset(data_train, labels_train)
-    dataset_val = SpikeDetectionDataset(data_val, labels_val)
-    dataset_test = SpikeDetectionDataset(data_test, labels_test)
+        dataset_train = SpikeDetectionDataset(data_train, labels_train)
+        dataset_val = SpikeDetectionDataset(data_val, labels_val)
+        dataset_test = SpikeDetectionDataset(data_test, labels_test)
 
-    loader_train = DataLoader(dataset_train, batch_size=batch_size)
-    loader_val = DataLoader(dataset_val, batch_size=batch_size)
-    loader_test = DataLoader(dataset_test, batch_size=batch_size)
+        loader_train = DataLoader(dataset_train, batch_size=batch_size)
+        loader_val = DataLoader(dataset_val, batch_size=batch_size)
+        loader_test = DataLoader(dataset_test, batch_size=batch_size)
+
+    else:
+        target_mean = np.mean([np.mean(data) for data in train_data])
+        target_std = np.mean([np.std(data) for data in train_data])
+        train_data = [np.expand_dims((data-target_mean) / target_std,
+                      axis=1)
+                      for data in train_data]
+        
+        # Create training dataloader
+        loader_train = get_pad_dataloader(train_data,
+                                          train_labels,
+                                          batch_size, True,
+                                          num_workers)
+
+        val_data = [np.expand_dims((data-target_mean) / target_std,
+                    axis=1)
+                    for data in val_data]
+
+        # Create val dataloader
+        val_dataloader = get_pad_dataloader(val_data,
+                                            val_labels,
+                                            batch_size, False,
+                                            num_workers)
+
+        test_data = [np.expand_dims((data-target_mean) / target_std,
+                     axis=1)
+                     for data in test_data]
+
+        # Create test dataloader
+        test_dataloader = get_pad_dataloader(test_data,
+                                             test_labels,
+                                             batch_size, False,
+                                             num_workers)
 
     input_size = loader_train.dataset[0][0].shape[1]
 
@@ -130,7 +166,6 @@ for test_subject_id in subject_ids:
     optimizer = Adam(model.parameters(), lr=lr, weight_decay=0)
 
     criterion = BCELoss()
-
 
     # Train Model
     best_model, history = train(
@@ -146,7 +181,7 @@ for test_subject_id in subject_ids:
     )
 
     if not os.path.exists("../results"):
-            os.mkdir("../results")
+        os.mkdir("../results")
 
     if args.save_model:
         model_dir = "../results/{}".format(model)
@@ -175,6 +210,9 @@ for test_subject_id in subject_ids:
         "../results/csv"
     )
     if not os.path.exists(results_path):
-            os.mkdir(results_path)
+        os.mkdir(results_path)
+
     df_results = pd.DataFrame(results)
-    df_results.to_csv(os.path.join(results_path,"accuracy_results_spike_detection_method-{}_{}-subjects.csv".format(method, len(subject_ids))))
+    df_results.to_csv(
+        os.path.join(results_path,
+                     "accuracy_results_spike_detection_method-{}_{}-subjects.csv".format(method, len(subject_ids))))
