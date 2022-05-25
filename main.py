@@ -18,7 +18,7 @@ from sklearn.metrics import balanced_accuracy_score
 from utils.training import train
 from utils.evaluation import score
 from utils.data_fukumori import Data, SpikeDetectionDataset
-from utils.model import fukumori2021RNN
+from utils.model import DetectionBertMEEG, fukumori2021RNN
 from utils.loader import get_pad_dataloader
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -80,13 +80,13 @@ for test_subject_id in subject_ids:
           'test on: {}'.format(test_subject_id,
                                val_subject_id))
 
-    for id in train_subject_ids:
-        sessions_trials = data[id]
-        data_train.append(np.concatenate(sessions_trials, axis=0))
-        sessions_events = labels[id]
-        labels_train.append(np.concatenate(sessions_events))
-
     if method == 'Fukumori':
+        for id in train_subject_ids:
+            sessions_trials = data[id]
+            data_train.append(np.concatenate(sessions_trials, axis=0))
+            sessions_events = labels[id]
+            labels_train.append(np.concatenate(sessions_events))
+
         data_train = np.concatenate(data_train, axis=0)
         labels_train = np.concatenate(labels_train, axis=0)
         data_val = np.concatenate(data[val_subject_id], axis=0)
@@ -123,42 +123,74 @@ for test_subject_id in subject_ids:
         loader_test = DataLoader(dataset_test, batch_size=batch_size)
 
     else:
+        train_data = []
+        for id in train_subject_ids:
+            sessions_trials = data[id]
+            for trials in sessions_trials:
+                train_data.append(trials)
+        train_labels = []
+        for id in train_subject_ids:
+            sessions_events = labels[id]
+            for events in sessions_events:
+                train_labels.append(events)
+
         target_mean = np.mean([np.mean(data) for data in train_data])
         target_std = np.mean([np.std(data) for data in train_data])
         train_data = [np.expand_dims((data-target_mean) / target_std,
                       axis=1)
                       for data in train_data]
-        
+
         # Create training dataloader
         loader_train = get_pad_dataloader(train_data,
                                           train_labels,
-                                          batch_size, True,
-                                          num_workers)
+                                          batch_size,
+                                          True,
+                                          0)
+        val_data = []
+        sessions_trials = data[val_subject_id]
+        for trials in sessions_trials:
+            val_data.append(trials)
+        val_labels = []
+        sessions_events = labels[val_subject_id]
+        for events in sessions_events:
+            val_labels.append(events)
 
         val_data = [np.expand_dims((data-target_mean) / target_std,
                     axis=1)
                     for data in val_data]
 
         # Create val dataloader
-        val_dataloader = get_pad_dataloader(val_data,
-                                            val_labels,
-                                            batch_size, False,
-                                            num_workers)
+        loader_val = get_pad_dataloader(val_data,
+                                        val_labels,
+                                        batch_size,
+                                        False,
+                                        0)
 
         test_data = [np.expand_dims((data-target_mean) / target_std,
                      axis=1)
                      for data in test_data]
 
         # Create test dataloader
-        test_dataloader = get_pad_dataloader(test_data,
-                                             test_labels,
-                                             batch_size, False,
-                                             num_workers)
+        test_data = []
+        sessions_trials = data[test_subject_id]
+        for trials in sessions_trials:
+            test_data.append(trials)
+        test_labels = []
+        sessions_events = labels[test_subject_id]
+        for events in sessions_events:
+            test_labels.append(events)
+        loader_test = get_pad_dataloader(test_data,
+                                         test_labels,
+                                         batch_size,
+                                         False,
+                                         0)
 
     input_size = loader_train.dataset[0][0].shape[1]
 
     if method == "Fukumori":
         model = fukumori2021RNN(input_size=input_size)
+    else:
+        model = DetectionBertMEEG()
 
     model = model.to(device)
 
