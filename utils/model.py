@@ -1,5 +1,11 @@
-from torch import nn
 import torch
+import torch.nn.functional as F
+
+from torch import nn
+from einops import rearrange
+from einops.layers.torch import Reduce, Rearrange
+from torch import nn
+from torch import Tensor
 
 
 class fukumori2021RNN(nn.Module):
@@ -42,28 +48,6 @@ class fukumori2021RNN(nn.Module):
         x = self.sigmoid(x)
 
         return x, attention_weights
-
-
-#!/usr/bin/env python
-
-"""
-This script contains a model to detect spikes and a model
-to count the number of spikes inspired by:
-`"Transformer-based Spatial-Temporal Feature Learning for EEG Decoding"
-<https://arxiv.org/pdf/2106.11170.pdf>`_.
-
-Usage: type "from models import <class>" to use one class.
-
-Contributors: Ambroise Odonnat.
-"""
-
-import torch
-
-from einops import rearrange
-from einops.layers.torch import Reduce, Rearrange
-from torch import nn
-from torch import Tensor
-from heads import Mish, RobertaClassifier, SpikeDetector
 
 
 """ ********** Residual connection for better training ********** """
@@ -347,6 +331,68 @@ class TransformerEncoder(nn.Sequential):
 """ ********** Classification Model ********** """
 
 
+class Mish(nn.Module):
+
+    """ Activation function inspired by:
+        `<https://www.bmvc2020-conference.com/assets/papers/0928.pdf>`.
+    """
+
+    def __init__(self):
+
+        super().__init__()
+
+    def forward(self, x):
+
+        return x*torch.tanh(F.softplus(x))
+
+
+class RobertaClassifier(nn.Sequential):
+
+    def __init__(self, emb_size, n_classes, dropout):
+
+        """ Model inspired by
+            `<https://zablo.net/blog/post/custom-classifier-on-bert-model-guide-polemo2-sentiment-analysis/>`_
+        Args:
+            emb_size (int): Size of embedding vector.
+            n_classes (int): Number of classes.
+            dropout (float): Dropout value.
+        """
+
+        super().__init__()
+
+        self.classifier = nn.Sequential(
+                             nn.Dropout(dropout),
+                             Reduce('b v o -> b o',
+                                    reduction='mean'),
+                             nn.Linear(emb_size, emb_size),
+                             Mish(),
+                             nn.Dropout(dropout),
+                             nn.Linear(emb_size, n_classes)
+                             )
+
+        # Weight initialization
+        for layer in self.classifier:
+            if isinstance(layer, nn.Linear):
+                layer.weight.data.normal_(mean=0.0, std=0.02)
+                if layer.bias is not None:
+                    layer.bias.data.zero_()
+
+    def forward(self, x):
+
+        """ Compute logits used to obtain probability vector on classes.
+        Args:
+            x (tensor): Batch of dimension
+                        [batch_size x seq_len x emb_size].
+        Returns:
+            x : Batch of dimension
+                [batch_size x seq_len x emb_size].
+            out: Tensor of logits of dimension [batch_size x n_classes].
+        """
+
+        out = self.classifier(x)
+        return x, out
+
+
 class ClassificationBertMEEG(nn.Sequential):
 
     """ Determine the number of spikes in an EEG/MEG trial. Inspired by:
@@ -359,12 +405,27 @@ class ClassificationBertMEEG(nn.Sequential):
                      [batch_size x n_classes].
     """
 
-    def __init__(self, n_classes, n_time_points, attention_num_heads,
-                 attention_dropout, spatial_dropout, emb_size, n_maps,
-                 position_kernel, position_stride, channels_kernel,
-                 channels_stride, time_kernel, time_stride, positional_dropout,
-                 embedding_dropout, depth, num_heads, expansion,
-                 transformer_dropout, classifier_dropout):
+    def __init__(self,
+                 n_classes,
+                 n_time_points=201,
+                 attention_num_heads=3,
+                 attention_dropout=0.8,
+                 spatial_dropout=0.8,
+                 emb_size=30,
+                 n_maps=5,
+                 position_kernel=20,
+                 position_stride=1,
+                 channels_kernel=20,
+                 channels_stride=1,
+                 time_kernel=20,
+                 time_stride=1,
+                 positional_dropout=0,
+                 embedding_dropout=0.1,
+                 depth=3,
+                 num_heads=10,
+                 expansion=4,
+                 transformer_dropout=0,
+                 classifier_dropout=0):
 
         """
         Args:
@@ -418,8 +479,9 @@ class ClassificationBertMEEG(nn.Sequential):
                          # Temporal transforming
 
                          RobertaClassifier(emb_size, n_classes,
-                                           classifier_dropout)
+                                           classifier_dropout),
                          # Classifier
+                         nn.Sigmoid()
                          )
 
 
