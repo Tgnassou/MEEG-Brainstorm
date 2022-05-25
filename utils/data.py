@@ -95,7 +95,6 @@ class Data:
         count_spikes = 0
         spike_time_points = []
         event_label = trial['Events']['label'][0][0][0]
-        print(trial['Events']['label'])
         if event_label == wanted_event_label:
             count_spikes += trial['Events']['times'][0][0].shape[1]
             spike_time_points = np.round(trial['Events']['times'][0][0][0],2) # In seconds

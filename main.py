@@ -18,7 +18,7 @@ from sklearn.metrics import balanced_accuracy_score
 from utils.training import train
 from utils.evaluation import score
 from utils.data_fukumori import Data, SpikeDetectionDataset
-from utils.model import DetectionBertMEEG, fukumori2021RNN
+from utils.model import ClassificationBertMEEG, fukumori2021RNN
 from utils.loader import get_pad_dataloader
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -53,13 +53,18 @@ batch_size = args.batch_size
 path_data = args.path_data
 sfreq = 100  # Sampling frequency
 
-dataset = Data(path_data, False, 'spikeandwave', 'EEG', 100, True)
+if method == 'Fukumori':
+    single_channel = True
+else: 
+     single_channel = False
+
+dataset = Data(path_data, False, 'spikeandwave', 'EEG', 100, True, single_channel)
 all_dataset = dataset.all_datasets()
 
 n_epochs = 100
 patience = 10
 
-assert method in ("Fukumori")
+assert method in ("Fukumori", "Ambroise")
 
 results = []
 data = all_dataset[0]
@@ -166,9 +171,7 @@ for test_subject_id in subject_ids:
                                         False,
                                         0)
 
-        test_data = [np.expand_dims((data-target_mean) / target_std,
-                     axis=1)
-                     for data in test_data]
+        
 
         # Create test dataloader
         test_data = []
@@ -179,6 +182,10 @@ for test_subject_id in subject_ids:
         sessions_events = labels[test_subject_id]
         for events in sessions_events:
             test_labels.append(events)
+
+        test_data = [np.expand_dims((data-target_mean) / target_std,
+                    axis=1)
+                    for data in test_data]
         loader_test = get_pad_dataloader(test_data,
                                          test_labels,
                                          batch_size,
@@ -190,7 +197,7 @@ for test_subject_id in subject_ids:
     if method == "Fukumori":
         model = fukumori2021RNN(input_size=input_size)
     else:
-        model = DetectionBertMEEG()
+        model = ClassificationBertMEEG()
 
     model = model.to(device)
 

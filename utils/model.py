@@ -367,7 +367,8 @@ class RobertaClassifier(nn.Sequential):
                              nn.Linear(emb_size, emb_size),
                              Mish(),
                              nn.Dropout(dropout),
-                             nn.Linear(emb_size, n_classes)
+                             nn.Linear(emb_size, n_classes),
+                             nn.Sigmoid()
                              )
 
         # Weight initialization
@@ -390,7 +391,7 @@ class RobertaClassifier(nn.Sequential):
         """
 
         out = self.classifier(x)
-        return x, out
+        return out, x
 
 
 class ClassificationBertMEEG(nn.Sequential):
@@ -406,7 +407,7 @@ class ClassificationBertMEEG(nn.Sequential):
     """
 
     def __init__(self,
-                 n_classes,
+                 n_classes=1,
                  n_time_points=201,
                  attention_num_heads=3,
                  attention_dropout=0.8,
@@ -481,7 +482,7 @@ class ClassificationBertMEEG(nn.Sequential):
                          RobertaClassifier(emb_size, n_classes,
                                            classifier_dropout),
                          # Classifier
-                         nn.Sigmoid()
+                         
                          )
 
 

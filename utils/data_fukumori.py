@@ -46,7 +46,7 @@ class Data:
 
     def __init__(self, path_root, label_position, wanted_event_label,
                  wanted_channel_type, sample_frequence,
-                 binary_classification):
+                 binary_classification, single_channel):
 
         """
         Args:
@@ -68,6 +68,7 @@ class Data:
         self.wanted_channel_type = wanted_channel_type
         self.sample_frequence = sample_frequence
         self.binary_classification = binary_classification
+        self.single_channel = single_channel
 
     def get_trial(self, trial_fname, channel_fname,
                   wanted_event_label, wanted_channel_type, single_channel):
@@ -143,7 +144,7 @@ class Data:
 
     def get_dataset(self, folder, channel_fname, wanted_event_label,
                     wanted_channel_type, sample_frequence,
-                    binary_classification):
+                    binary_classification, single_channel):
 
         """ Get trials with corresponding labels and spike events array
             (1 when a spike occurs and 0 elsewhere).
@@ -172,7 +173,7 @@ class Data:
         # Loop on trials
         for trial_fname in folder:
             dataset = self.get_trial(trial_fname, channel_fname,
-                                     wanted_event_label, wanted_channel_type)
+                                     wanted_event_label, wanted_channel_type, single_channel)
             data, n_spike, spike_time_points, times, bad_trial = dataset
 
             # Apply binary classification
@@ -214,7 +215,7 @@ class Data:
 
     def get_all_datasets(self, path_root, wanted_event_label,
                          wanted_channel_type, sample_frequence,
-                         binary_classification):
+                         binary_classification, single_channel):
 
         """ Recover data and create labels.
         Args:
@@ -259,7 +260,8 @@ class Data:
                                                wanted_event_label,
                                                wanted_channel_type,
                                                sample_frequence,
-                                               binary_classification)
+                                               binary_classification,
+                                               single_channel)
                     data, labels, spike_events = dataset
                     subject_data.append(data)
                     subject_labels.append(labels)
@@ -279,7 +281,8 @@ class Data:
         return self.get_all_datasets(self.path_root, self.wanted_event_label,
                                      self.wanted_channel_type,
                                      self.sample_frequence,
-                                     self.binary_classification)
+                                     self.binary_classification,
+                                     self.single_channel)
 
 
 class SpikeDetectionDataset(Dataset):
