@@ -111,18 +111,22 @@ class Data:
 
         # Select the wanted type of channels
         if wanted_channel != 0 and single_channel:
-            for i in range(channel_mat['Channel'].shape[1]):
+            name_wanted_channel = wanted_channel
+            i = 0
+            while wanted_channel == name_wanted_channel and i<channel_mat['Channel'].shape[1]:
                 channel_name = channel_mat['Channel'][0, i]['Name'].tolist()[0]
-                if wanted_channel == 'Pz':
-                    wanted_channel = 'PZ'
-                elif wanted_channel == 'Fp1':
-                    wanted_channel = 'FP1'
-                elif wanted_channel == 'Fz':
-                    wanted_channel = 'FZ'
-                elif wanted_channel == 'Cz':
-                    wanted_channel = 'CZ'
-                if channel_name == wanted_channel:
+                # if wanted_channel == 'Pz':
+                #     wanted_channel = 'PZ'
+                # elif wanted_channel == 'Fp1':
+                #     wanted_channel = 'FP1'
+                # elif wanted_channel == 'Fz':
+                #     wanted_channel = 'FZ'
+                # elif wanted_channel == 'Cz':
+                #     wanted_channel = 'CZ'
+                if channel_name.casefold() == wanted_channel.casefold():
                     wanted_channel = i
+                i += 1
+
         else:
             wanted_channels = []
             for i in range(channel_mat['Channel'].shape[1]):
