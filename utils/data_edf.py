@@ -18,7 +18,7 @@ from os.path import isfile, join
 from torch.utils.data import Dataset
 
 
-def get_spike_events(spike_time_points, n_time_points, freq):
+def get_spike_events(spike_time_points, n_time_points):
 
     """
     Compute array of dimension [n_time_points] with 1
@@ -37,8 +37,7 @@ def get_spike_events(spike_time_points, n_time_points, freq):
 
     spike_events = np.zeros(n_time_points)
     for time in spike_time_points:
-        index = int(freq*time)
-        spike_events[index] = 1
+        spike_events[time] = 1
 
     return spike_events.astype(int)
 
@@ -101,7 +100,7 @@ class Data:
         if wanted_event_label in events_name:
             events_points = np.where(events[0][:, 2] == events[1][wanted_event_label])
             count_spikes += len(events_points)
-            spike_time_points = events[0][events_points, 0]
+            spike_time_points = events[0][events_points, 0][0]
 
         if 'BAD' in events_name:
             bad_trial = 1
@@ -153,18 +152,20 @@ class Data:
             for trial_fname in folder:
                 raw = mne.io.read_raw_edf(trial_fname, preload=False,
                                           stim_channel=None, verbose=False)
-                events = mne.events_from_annotations(raw)
+                events = mne.events_from_annotations(raw, verbose=False)
                 ch_names = raw.info.ch_names
                 for event in events[1].keys():
                     len_string_event = len(wanted_event_label)
                     if event[-len_string_event:] == wanted_event_label and len(event) > len_string_event:
                         wanted_channels.append(np.where(
-                                               np.array(ch_names) == 'EEG ' + event[:2])[0][0])
+                                               np.array(ch_names) == 'EEG ' + event[:2].upper())[0][0])
+
+        wanted_channels = np.unique(wanted_channels)
 
         for trial_fname in folder:
             raw = mne.io.read_raw_edf(trial_fname, preload=False,
                                       stim_channel=None, verbose=False)
-            events = mne.events_from_annotations(raw)
+            events = mne.events_from_annotations(raw, verbose=False)
             dataset = self.get_trial(raw,
                                      events,
                                      wanted_event_label,
@@ -185,7 +186,7 @@ class Data:
 
                 # Get vector with 1 when a spike occurs and 0 elsewhere
                 N = len(times)
-                spike_events = get_spike_events(spike_time_points, N, sfreq)
+                spike_events = get_spike_events(spike_time_points, N)
                 all_spike_events.append(spike_events)
 
         # Stack Dataset along axis 0
@@ -234,7 +235,8 @@ class Data:
         all_labels = {}
         all_spike_events = {}
         for item in os.listdir(path_root):
-            if not item.startswith('.'):
+
+            if not isfile(path_root + item):
                 logger.info("Recover data for {}".format(item))
                 subject_data, subject_labels, subject_spike_events = [], [], []
                 subject_path = path_root+item+'/'

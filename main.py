@@ -68,8 +68,9 @@ assert method in ("Fukumori", "Ambroise")
 
 results = []
 data = all_dataset[0]
-subject_ids = np.asarray(list(data.keys()))
 labels = all_dataset[1]
+print(labels)
+subject_ids = np.asarray(list(data.keys()))
 for test_subject_id in subject_ids:
 
     data_train = []
@@ -87,7 +88,7 @@ for test_subject_id in subject_ids:
 
     if method == 'Fukumori':
         for id in train_subject_ids:
-            sessions_trials = data[id]
+            sessions_trials = np.array(data[id]).squeeze()
             data_train.append(np.concatenate(sessions_trials, axis=0))
             sessions_events = labels[id]
             labels_train.append(np.concatenate(sessions_events))
@@ -98,14 +99,14 @@ for test_subject_id in subject_ids:
         labels_val = np.concatenate(labels[val_subject_id], axis=0)
         data_test = np.concatenate(data[test_subject_id], axis=0)
         labels_test = np.concatenate(labels[test_subject_id], axis=0)
-
+        print(data_train.shape)
         data_train = signal.resample(data_train, 512, axis=1)
         data_train = data_train[:, :, np.newaxis]
         data_test = signal.resample(data_test, 512, axis=1)
         data_test = data_test[:, :, np.newaxis]
         data_val = signal.resample(data_val, 512, axis=1)
         data_val = data_val[:, :, np.newaxis]
-
+        print(data_train.shape)
         mean = data_train.mean()
         std = data_train.std()
         data_train -= mean
@@ -144,7 +145,7 @@ for test_subject_id in subject_ids:
         train_data = [np.expand_dims((data-target_mean) / target_std,
                       axis=1)
                       for data in train_data]
-
+        print(len(train_data))
         # Create training dataloader
         loader_train = get_pad_dataloader(train_data,
                                           train_labels,
