@@ -55,10 +55,10 @@ sfreq = 100  # Sampling frequency
 
 if method == 'Fukumori':
     single_channel = True
-else: 
-     single_channel = False
+else:
+    single_channel = False
 
-dataset = Data(path_data, False, 'spikeandwave', 'EEG', 100, True, single_channel)
+dataset = Data(path_data, 'spikeandwave', single_channel)
 all_dataset = dataset.all_datasets()
 
 n_epochs = 100
@@ -171,7 +171,7 @@ for test_subject_id in subject_ids:
                                         False,
                                         0)
 
-        
+
 
         # Create test dataloader
         test_data = []
