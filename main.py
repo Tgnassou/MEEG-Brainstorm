@@ -17,7 +17,7 @@ from sklearn.metrics import balanced_accuracy_score
 
 from utils.training import train
 from utils.evaluation import score
-from utils.data_fukumori import Data, SpikeDetectionDataset
+from utils.data_edf import Data, SpikeDetectionDataset
 from utils.model import ClassificationBertMEEG, fukumori2021RNN
 from utils.loader import get_pad_dataloader
 
