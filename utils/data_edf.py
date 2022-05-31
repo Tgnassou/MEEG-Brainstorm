@@ -45,9 +45,7 @@ def get_spike_events(spike_time_points, n_time_points, freq):
 
 class Data:
 
-    def __init__(self, path_root, label_position, wanted_event_label,
-                 wanted_channel_type, sample_frequence,
-                 binary_classification, single_channel):
+    def __init__(self, path_root, wanted_event_label, single_channel):
 
         """
         Args:
@@ -64,11 +62,7 @@ class Data:
         """
 
         self.path_root = path_root
-        # self.label_position = label_position
         self.wanted_event_label = wanted_event_label
-        # self.wanted_channel_type = wanted_channel_type
-        # self.sample_frequence = sample_frequence
-        # self.binary_classification = binary_classification
         self.single_channel = single_channel
 
     def get_trial(self,
@@ -104,15 +98,13 @@ class Data:
         spike_time_points = []
         bad_trial = 0
 
-        if 'spikeandwave' in events_name:
-            events_points = np.where(events[0][:, 2] == events[1]['spikeandwave'])
+        if wanted_event_label in events_name:
+            events_points = np.where(events[0][:, 2] == events[1][wanted_event_label])
             count_spikes += len(events_points)
             spike_time_points = events[0][events_points, 0]
 
         if 'BAD' in events_name:
             bad_trial = 1
-
-        
 
         # Recover data and time points
         if single_channel:
@@ -164,7 +156,8 @@ class Data:
                 events = mne.events_from_annotations(raw)
                 ch_names = raw.info.ch_names
                 for event in events[1].keys():
-                    if event[-12:] == 'spikeandwave' and len(event) > 12:
+                    len_string_event = len(wanted_event_label)
+                    if event[-len_string_event:] == wanted_event_label and len(event) > len_string_event:
                         wanted_channels.append(np.where(
                                                np.array(ch_names) == 'EEG ' + event[:2])[0][0])
 
@@ -216,9 +209,7 @@ class Data:
 
         return all_data, all_labels, all_spike_events
 
-    def get_all_datasets(self, path_root, wanted_event_label,
-                         wanted_channel_type, sample_frequence,
-                         binary_classification, single_channel):
+    def get_all_datasets(self, path_root, wanted_event_label, single_channel):
 
         """ Recover data and create labels.
         Args:
