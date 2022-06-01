@@ -86,117 +86,75 @@ for test_subject_id in subject_ids:
           'test on: {}'.format(test_subject_id,
                                val_subject_id))
 
-    if method == 'Fukumori':
-        for id in train_subject_ids:
-            sessions_trials = np.array(data[id]).squeeze()
-            data_train.append(np.concatenate(sessions_trials, axis=0))
-            sessions_events = labels[id]
-            labels_train.append(np.concatenate(sessions_events))
+    
 
-        data_train = np.concatenate(data_train, axis=0)
-        labels_train = np.concatenate(labels_train, axis=0)
-        data_val = np.concatenate(data[val_subject_id], axis=0)
-        labels_val = np.concatenate(labels[val_subject_id], axis=0)
-        data_test = np.concatenate(data[test_subject_id], axis=0)
-        labels_test = np.concatenate(labels[test_subject_id], axis=0)
-        print(data_train.shape)
-        data_train = signal.resample(data_train, 512, axis=1)
-        data_train = data_train[:, :, np.newaxis]
-        data_test = signal.resample(data_test, 512, axis=1)
-        data_test = data_test[:, :, np.newaxis]
-        data_val = signal.resample(data_val, 512, axis=1)
-        data_val = data_val[:, :, np.newaxis]
-        print(data_train.shape)
-        mean = data_train.mean()
-        std = data_train.std()
-        data_train -= mean
-        data_train /= std
-        mean = data_val.mean()
-        std = data_val.std()
-        data_val -= mean
-        data_val /= std
-        mean = data_test.mean()
-        std = data_test.std()
-        data_test -= mean
-        data_test /= std
-
-        dataset_train = SpikeDetectionDataset(data_train, labels_train)
-        dataset_val = SpikeDetectionDataset(data_val, labels_val)
-        dataset_test = SpikeDetectionDataset(data_test, labels_test)
-
-        loader_train = DataLoader(dataset_train, batch_size=batch_size)
-        loader_val = DataLoader(dataset_val, batch_size=batch_size)
-        loader_test = DataLoader(dataset_test, batch_size=batch_size)
-
-    else:
-        train_data = []
-        for id in train_subject_ids:
-            sessions_trials = data[id]
-            for trials in sessions_trials:
-                train_data.append(trials)
-        train_labels = []
-        for id in train_subject_ids:
-            sessions_events = labels[id]
-            for events in sessions_events:
-                train_labels.append(events)
-
-        target_mean = np.mean([np.mean(data) for data in train_data])
-        target_std = np.mean([np.std(data) for data in train_data])
-        train_data = [np.expand_dims((data-target_mean) / target_std,
-                      axis=1)
-                      for data in train_data]
-        print(len(train_data))
-        # Create training dataloader
-        loader_train = get_pad_dataloader(train_data,
-                                          train_labels,
-                                          batch_size,
-                                          True,
-                                          0)
-        val_data = []
-        sessions_trials = data[val_subject_id]
+    train_data = []
+    for id in train_subject_ids:
+        sessions_trials = data[id]
         for trials in sessions_trials:
-            val_data.append(trials)
-        val_labels = []
-        sessions_events = labels[val_subject_id]
+            train_data.append(trials)
+    train_labels = []
+    for id in train_subject_ids:
+        sessions_events = labels[id]
         for events in sessions_events:
-            val_labels.append(events)
+            train_labels.append(events)
 
-        val_data = [np.expand_dims((data-target_mean) / target_std,
+    target_mean = np.mean([np.mean(data) for data in train_data])
+    target_std = np.mean([np.std(data) for data in train_data])
+    train_data = [np.expand_dims((data-target_mean) / target_std,
                     axis=1)
-                    for data in val_data]
+                    for data in train_data]
+    # Create training dataloader
+    loader_train = get_pad_dataloader(train_data,
+                                        train_labels,
+                                        batch_size,
+                                        True,
+                                        0)
+    val_data = []
+    sessions_trials = data[val_subject_id]
+    for trials in sessions_trials:
+        val_data.append(trials)
+    val_labels = []
+    sessions_events = labels[val_subject_id]
+    for events in sessions_events:
+        val_labels.append(events)
 
-        # Create val dataloader
-        loader_val = get_pad_dataloader(val_data,
-                                        val_labels,
+    val_data = [np.expand_dims((data-target_mean) / target_std,
+                axis=1)
+                for data in val_data]
+
+    # Create val dataloader
+    loader_val = get_pad_dataloader(val_data,
+                                    val_labels,
+                                    batch_size,
+                                    False,
+                                    0)
+
+
+
+    # Create test dataloader
+    test_data = []
+    sessions_trials = data[test_subject_id]
+    for trials in sessions_trials:
+        test_data.append(trials)
+    test_labels = []
+    sessions_events = labels[test_subject_id]
+    for events in sessions_events:
+        test_labels.append(events)
+
+    test_data = [np.expand_dims((data-target_mean) / target_std,
+                axis=1)
+                for data in test_data]
+    loader_test = get_pad_dataloader(test_data,
+                                        test_labels,
                                         batch_size,
                                         False,
                                         0)
 
-
-
-        # Create test dataloader
-        test_data = []
-        sessions_trials = data[test_subject_id]
-        for trials in sessions_trials:
-            test_data.append(trials)
-        test_labels = []
-        sessions_events = labels[test_subject_id]
-        for events in sessions_events:
-            test_labels.append(events)
-
-        test_data = [np.expand_dims((data-target_mean) / target_std,
-                    axis=1)
-                    for data in test_data]
-        loader_test = get_pad_dataloader(test_data,
-                                         test_labels,
-                                         batch_size,
-                                         False,
-                                         0)
-
     input_size = loader_train.dataset[0][0].shape[1]
 
     if method == "Fukumori":
-        model = fukumori2021RNN(input_size=input_size)
+        model = fukumori2021RNN(input_size=1)
     else:
         model = ClassificationBertMEEG()
 

@@ -8,9 +8,11 @@ import glob
 import os
 import scipy.io
 import mne
+import scipy 
 
 import numpy as np
 
+from scipy import signal
 from loguru import logger
 from os import listdir
 from os.path import isfile, join
@@ -160,7 +162,9 @@ class Data:
                         wanted_channels.append(np.where(
                                                np.array(ch_names) == 'EEG ' + event[:2].upper())[0][0])
 
-        wanted_channels = np.unique(wanted_channels)
+            wanted_channels = np.unique(wanted_channels)
+            if len(wanted_channels) == 0 :
+                wanted_channels = [np.random.randint(0, len(ch_names))]
 
         for trial_fname in folder:
             raw = mne.io.read_raw_edf(trial_fname, preload=False,
@@ -188,9 +192,13 @@ class Data:
                 N = len(times)
                 spike_events = get_spike_events(spike_time_points, N)
                 all_spike_events.append(spike_events)
-
         # Stack Dataset along axis 0
         all_data = np.stack(all_data, axis=0)
+
+        if single_channel:
+            ntrials, nchan, ntime = all_data.shape
+            all_data = all_data.reshape(ntrials*nchan, ntime) # Each channels become a trials
+            all_data = scipy.signal.resample(all_data, 512, axis=1)
         all_n_spikes = np.asarray(all_n_spikes)
         all_spike_events = np.asarray(all_spike_events, dtype='int64')
 
