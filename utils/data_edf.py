@@ -6,6 +6,7 @@ Contributors: Ambroise Odonnat.
 
 import glob
 import os
+from turtle import position
 import scipy.io
 import mne
 import scipy 
@@ -152,46 +153,54 @@ class Data:
         if single_channel:
 
             for trial_fname in folder:
-                raw = mne.io.read_raw_edf(trial_fname, preload=False,
-                                          stim_channel=None, verbose=False)
-                events = mne.events_from_annotations(raw, verbose=False)
-                ch_names = raw.info.ch_names
-                for event in events[1].keys():
-                    len_string_event = len(wanted_event_label)
-                    if event[-len_string_event:] == wanted_event_label and len(event) > len_string_event:
-                        wanted_channels.append(np.where(
-                                               np.array(ch_names) == 'EEG ' + event[:2].upper())[0][0])
+                try:
+                    raw = mne.io.read_raw_edf(trial_fname, preload=False,
+                                            stim_channel=None, verbose=False)
+                    events = mne.events_from_annotations(raw, verbose=False)
+                    ch_names = raw.info.ch_names
+                    for event in events[1].keys():
+                        len_string_event = len(wanted_event_label)
+                        if event[-len_string_event:] == wanted_event_label and len(event) > len_string_event:
+                            position_channels = np.where(
+                                                np.array(ch_names) == 'EEG ' + event[:2].upper())[0]
+                            if len(position_channels) != 0:
+                                wanted_channels.append(position_channels[0])
+                except:
+                    continue
 
             wanted_channels = np.unique(wanted_channels)
-            if len(wanted_channels) == 0 :
+            if len(wanted_channels) == 0:
                 wanted_channels = [np.random.randint(0, len(ch_names))]
 
         for trial_fname in folder:
-            raw = mne.io.read_raw_edf(trial_fname, preload=False,
-                                      stim_channel=None, verbose=False)
-            events = mne.events_from_annotations(raw, verbose=False)
-            dataset = self.get_trial(raw,
-                                     events,
-                                     wanted_event_label,
-                                     wanted_channels,
-                                     single_channel)
+            try:
+                raw = mne.io.read_raw_edf(trial_fname, preload=False,
+                                        stim_channel=None, verbose=False)
+                events = mne.events_from_annotations(raw, verbose=False)
+                dataset = self.get_trial(raw,
+                                        events,
+                                        wanted_event_label,
+                                        wanted_channels,
+                                        single_channel)
 
-            data, n_spike, spike_time_points, times, bad_trial, sfreq = dataset
+                data, n_spike, spike_time_points, times, bad_trial, sfreq = dataset
 
-            # Apply binary classification
-            # label = 1 if at least one spike occurs, label = 0 otherwise
+                # Apply binary classification
+                # label = 1 if at least one spike occurs, label = 0 otherwise
 
-            n_spike = int((n_spike > 0))
+                n_spike = int((n_spike > 0))
 
-            # Append data and labels from each good trial
-            if bad_trial == 0:
-                all_data.append(data)
-                all_n_spikes.append(n_spike)
+                # Append data and labels from each good trial
+                if bad_trial == 0:
+                    all_data.append(data)
+                    all_n_spikes.append(n_spike)
 
-                # Get vector with 1 when a spike occurs and 0 elsewhere
-                N = len(times)
-                spike_events = get_spike_events(spike_time_points, N)
-                all_spike_events.append(spike_events)
+                    # Get vector with 1 when a spike occurs and 0 elsewhere
+                    N = len(times)
+                    spike_events = get_spike_events(spike_time_points, N)
+                    all_spike_events.append(spike_events)
+            except:
+                continue
         # Stack Dataset along axis 0
         all_data = np.stack(all_data, axis=0)
 

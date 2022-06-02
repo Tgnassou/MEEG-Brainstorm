@@ -26,7 +26,7 @@ class fukumori2021RNN(nn.Module):
     def forward(self, x):
 
         # First LSTM
-        x, (_, _) = self.LSTM_1(x)
+        x, (_, _) = self.LSTM_1(x.transpose(1, 2))
         x = self.avgPool(x.transpose(1, 2))
         x = x.transpose(1, 2)
         x = x.transpose(0, 1)
